@@ -147,6 +147,204 @@ For 3D footage, the system processes `.ply` point cloud files from the **Helios2
 
 ---
 
+## 🤖 Helios Bot — Custom 3D Heel Detection Tool
+
+### Why it was built
+The standard MediaPipe pose estimation works well on regular 2D RGB video but **cannot directly process Helios2+ depth camera output (PLY point cloud files)**. The depth frames from Helios2+ are rendered as color-mapped silhouettes — not normal RGB images — meaning off-the-shelf tools fail to detect heel positions accurately.
+
+`helios_bot` was built specifically to solve this: a **custom automated pipeline** that processes Helios2+ depth frames and precisely detects both heel positions using silhouette analysis and grid-line intersection.
+
+### How it works (step by step)
+
+```
+Helios2+ Depth Frame (PLY/Image)
+        │
+        ▼
+1. Load image → Convert to grayscale → Blur to remove noise
+        │
+        ▼
+2. Apply threshold → Highlight body silhouette edges
+        │
+        ▼
+3. Find largest contour → Assumed to be the person's body
+        │
+        ▼
+4. Draw bounding box → Divide silhouette into Left / Right halves
+        │
+        ▼
+5. Define Heel Region Thresholds at bottom of each half
+        │
+        ▼
+6. Overlay grid of horizontal + vertical lines on image
+        │
+        ▼
+7. Detect contour intersections with grid inside heel regions
+   → Left heel intersections → marked BLUE
+   → Right heel intersections → marked PINK
+        │
+        ▼
+8. Select lowest intersection point per heel → Final heel coordinate
+        │
+        ▼
+9. Draw colored dot at detected heel → Save annotated frame
+        │
+        ▼
+Output: Heel coordinates (x, y) → Fed into Manhattan Distance formula
+```
+
+### Key problem it solved
+When the Helios2+ camera captured regions where the person was far away, **depth values extended to infinity** — those regions appeared completely black with no point cloud data. Neither Open3D nor PCL could reconstruct these missing areas.
+
+**Solution:** Color-based distance mapping. The Helios2+ color gradient (cyan → blue) was used to estimate distance:
+- Each color step = **100 cm**
+- Cyan to blue range = **0–200 cm**
+- This allowed the system to estimate distances in infinity regions using color information alone, making stride length calculation possible even in problematic frames.
+
+### What makes it unique
+> Unlike standard pose estimation libraries, `helios_bot` was built ground-up for **3D depth camera data** — handling silhouette-based detection, color-mapped depth estimation, and infinity region recovery — none of which existing tools support out of the box.
+
+---
+
+## 🔧 How Helios Bot Was Built — Technical Deep Dive
+
+Helios Bot was built in **two phases** across March and April 2025, each solving a different problem with Helios2+ depth camera data.
+
+---
+
+### Phase 1 — PLY File Processing Pipeline (March)
+
+**Why it was needed:**
+MediaPipe pose estimation works on RGB video but **completely fails on raw Helios2+ depth frames** (PLY point cloud files). MeshLab was tried first — it could open PLY files but crashed when applying denoising scripts and couldn't convert to PNG reliably. Open3D was found as the solution.
+
+**Libraries Used:**
+| Component | Tool |
+|-----------|------|
+| 3D point cloud processing | Open3D |
+| Background noise removal | Statistical Outlier Removal |
+| Image capture from 3D render | Open3D Visualizer |
+| Video generation from frames | OpenCV (`cv2.VideoWriter`) |
+| File handling | `os`, `glob` |
+
+**Step-by-Step Pipeline:**
+```
+STEP 1 — Load PLY Files
+  → Read all .ply files from specified folder
+  → Check each file contains point cloud data + color information
+
+STEP 2 — Filter & Clean Data
+  → Identify and remove black points (background noise)
+  → Apply Statistical Outlier Removal to refine point cloud
+  → Result: clean silhouette of the person only
+
+STEP 3 — Save Cleaned Point Cloud
+  → Store processed point cloud as new .ply file
+
+STEP 4 — Render & Capture Image
+  → Adjust camera angles for correct lateral/front view
+  → Render cleaned point cloud using Open3D Visualizer
+  → Capture render as .png image
+
+STEP 5 — Generate Video from Images
+  → Collect all processed .png frames
+  → Create .mp4 video using OpenCV VideoWriter
+
+STEP 6 — Complete
+  → Confirm successful processing of all PLY files
+```
+
+---
+
+### Phase 2 — Silhouette Heel Detection (April)
+
+**Why it was needed:**
+After converting PLY → PNG, MediaPipe still couldn't reliably detect heel keypoints on depth-colored silhouettes. A custom heel detection algorithm was built from scratch.
+
+**Libraries Used:**
+| Component | Tool |
+|-----------|------|
+| Image processing | OpenCV (`cv2`) |
+| Noise reduction | Gaussian Blur |
+| Silhouette extraction | Binary Thresholding |
+| Body contour detection | `cv2.findContours` |
+| Grid overlay | `cv2.line` |
+| Heel marking | `cv2.circle` + `cv2.putText` |
+| Coordinates | NumPy |
+
+**Step-by-Step Build Logic:**
+```
+STEP 1 — Load & Validate
+  → Load Helios2+ depth frame
+  → Convert BGR → Grayscale → Gaussian Blur (remove sensor noise)
+  → Apply Binary Threshold → highlight body silhouette edges
+
+STEP 2 — Contour Detection
+  → cv2.findContours() on thresholded image
+  → Select LARGEST contour = person's body
+  → Draw bounding rectangle around body
+
+STEP 3 — Split Body Left / Right
+  → Divide bounding box into LEFT half (left leg) and RIGHT half (right leg)
+  → Define Heel Region Threshold:
+     Bottom 15-20% of each half = heel zone only
+     (ignores knees, hips, upper body completely)
+
+STEP 4 — Grid Line Overlay
+  → Draw horizontal + vertical grid lines across full image
+  → Fixed pixel spacing using cv2.line()
+
+STEP 5 — Intersection Detection (Core Logic)
+  → For every grid intersection point (x, y):
+     Check if point is INSIDE heel region boundary
+     Check if point lies ON or NEAR body contour
+  → If both true:
+     Left heel region  → mark BLUE
+     Right heel region → mark PINK
+
+STEP 6 — Final Heel Point Selection
+  → From all intersections per heel:
+     Select LOWEST Y-coordinate = deepest point = actual heel
+  → Draw colored dot at final position:
+     Left heel  = BLUE dot
+     Right heel = PINK dot
+
+STEP 7 — Output
+  → Save annotated frame to output folder
+  → Print heel coordinates (x, y) to console
+  → Pass coordinates → Manhattan Distance → step/stride length
+```
+
+### Infinity Region Recovery (Color-Based Distance Mapping)
+
+When Helios2+ depth data extended to infinity, regions appeared completely black — Open3D and PCL both failed to reconstruct these areas.
+
+```
+Problem:
+  Infinity regions = no depth data = reconstruction impossible
+
+Solution — Color-based distance mapping:
+  Helios2+ encodes depth as color gradient (cyan → blue)
+  Each color band = 100 cm distance step
+  Cyan  = 0–100 cm (close range)
+  Blue  = 100–200 cm (far range)
+
+Implementation:
+  → Detect color range using HSV masking
+  → Map detected color → estimated distance in cm
+  → Use as substitute depth value
+  → Feed into Manhattan Distance for stride calculation
+```
+
+### Key Engineering Decisions
+
+| Problem | Failed Approach | Final Solution |
+|---------|----------------|----------------|
+| PLY → image conversion | MeshLab (crashed) | Open3D |
+| Heel detection on depth frames | Standard MediaPipe | Custom grid-intersection algorithm |
+| Unequal leg splitting | Simple midpoint division | Heel Region Threshold |
+| Infinity depth regions | Open3D/PCL reconstruction | Color-based distance mapping |
+
+---
+
 ## 🛠️ Tech Stack
 
 | Component | Technology |
