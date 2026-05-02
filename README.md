@@ -10,7 +10,7 @@
 
 <p align="center">
   <b>Research Project | Central Health Innovation (CHI), Manav Rachna University</b><br>
-  <i>Oct 2024 – Present</i>
+  <i>Oct 2024 – Dec 2025</i>
 </p>
 
 ---
