@@ -214,5 +214,5 @@ This project is associated with ongoing clinical research at Manav Rachna Univer
 
 <p align="center">
   Made with ❤️ for Parkinson's Disease Research<br>
-  <i>Central Health Innovation (CHI) | Manav Rachna University | 2024–Present</i>
+  <i>Central Health Innovation (CHI) | Manav Rachna University | 2024–2025</i>
 </p>
