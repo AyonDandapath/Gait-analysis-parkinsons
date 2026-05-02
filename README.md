@@ -220,37 +220,17 @@ MediaPipe pose estimation works on RGB video but **completely fails on raw Helio
 | Component | Tool |
 |-----------|------|
 | 3D point cloud processing | Open3D |
-| Background noise removal | Statistical Outlier Removal |
+| Background noise removal | Black point filtering (hue threshold = 0.88) |
+| Point cloud conversion | NumPy arrays (XYZ + RGB) |
 | Image capture from 3D render | Open3D Visualizer |
 | Video generation from frames | OpenCV (`cv2.VideoWriter`) |
 | File handling | `os`, `glob` |
 
-**Step-by-Step Pipeline:**
-```
-STEP 1 — Load PLY Files
-  → Read all .ply files from specified folder
-  → Check each file contains point cloud data + color information
+**Process Flowchart:**
 
-STEP 2 — Filter & Clean Data
-  → Identify and remove black points (background noise)
-  → Apply Statistical Outlier Removal to refine point cloud
-  → Result: clean silhouette of the person only
+![Helios Bot Process Flowchart](helios_bot_flowchart.png)
 
-STEP 3 — Save Cleaned Point Cloud
-  → Store processed point cloud as new .ply file
-
-STEP 4 — Render & Capture Image
-  → Adjust camera angles for correct lateral/front view
-  → Render cleaned point cloud using Open3D Visualizer
-  → Capture render as .png image
-
-STEP 5 — Generate Video from Images
-  → Collect all processed .png frames
-  → Create .mp4 video using OpenCV VideoWriter
-
-STEP 6 — Complete
-  → Confirm successful processing of all PLY files
-```
+> The flowchart above shows the complete Helios Bot pipeline: from loading raw PLY files, validating color data, converting to NumPy arrays, removing black background points, rendering in Open3D, adjusting camera orientation, capturing screenshots, and finally generating an MP4 video from all processed frames.
 
 ---
 
