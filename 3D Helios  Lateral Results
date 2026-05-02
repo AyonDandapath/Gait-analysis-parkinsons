@@ -1,0 +1,7 @@
+Video_ID,Camera,View,Step_Length_cm,Stride_Length_cm,Step_Time_sec,Cadence_steps_per_min,Notes
+H001,Helios2+,Lateral,104,200,0.531,138.76,Normal subject
+H002,Helios2+,Lateral,116,231,0.531,138.76,Normal subject
+H003,Helios2+,Lateral,120,234,0.531,138.76,Normal subject
+H004,Helios2+,Lateral,110,220,0.531,138.76,Normal subject
+H005,Helios2+,Lateral,119,236,0.531,138.76,Normal subject
+H006,Helios2+,Lateral,111,223,0.531,138.76,Normal subject
